@@ -16,6 +16,7 @@ import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSMatrix.Builder;
 import com.nvidia.cuvs.CuVSMatrix.DataType;
 import com.nvidia.cuvs.CuVSResources;
+import com.nvidia.cuvs.DiskAnnIndex;
 import com.nvidia.cuvs.FilterBitsetHandle;
 import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.HnswIndex;
@@ -24,6 +25,7 @@ import com.nvidia.cuvs.MultiPartitionSearchResults;
 import com.nvidia.cuvs.TieredIndex;
 import com.nvidia.cuvs.VamanaIndex;
 import com.nvidia.cuvs.spi.CuVSProvider;
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
 import java.util.BitSet;
@@ -31,21 +33,20 @@ import java.util.List;
 import java.util.logging.Level;
 
 class FilterCuVSProvider implements CuVSProvider {
+  // CuVSProvider's DiskANN methods have throwing defaults, so forward them explicitly.
   @Override
-  public com.nvidia.cuvs.DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count)
-      throws java.io.IOException {
+  public DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count) throws IOException {
     return delegate.openDiskAnnIndex(prefix, dimension, count);
   }
 
   @Override
-  public void loadDiskAnnLibrary(Path library) throws java.io.IOException {
+  public void loadDiskAnnLibrary(Path library) throws IOException {
     delegate.loadDiskAnnLibrary(library);
   }
 
   @Override
   public void prepareDiskAnnIndex(
-      Path data, Path graph, Path prefix, int chunks, int sample, int block)
-      throws java.io.IOException {
+      Path data, Path graph, Path prefix, int chunks, int sample, int block) throws IOException {
     delegate.prepareDiskAnnIndex(data, graph, prefix, chunks, sample, block);
   }
 

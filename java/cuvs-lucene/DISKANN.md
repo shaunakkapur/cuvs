@@ -1,43 +1,24 @@
-# Experimental partition graphs
+# DiskANN vectors format
 
-`DiskAnnVectorsFormat` owns graph artifacts through Lucene `Directory`, including
-standard headers/footers, compound files and merge-abort cleanup. The single-graph
-builder uses cuvs-java for GPU Vamana construction and the fork's `DiskAnnIndex`
-for CPU PQ/layout conversion and disk search.
+`DiskAnnVectorsFormat` stores float32 EUCLIDEAN vectors in Lucene's flat format and
+can add a DiskANN graph per field. cuVS builds the graph on the GPU; queries search
+it on the CPU through `com.nvidia.cuvs.DiskAnnIndex` (see `c/diskann/README.md`).
 
-Fresh segments and ordinary merges stay flat. The default format does not build
-graphs, even during `forceMerge(1)`. A host must opt in with `Options` before a
-controlled force merge after bulk ingestion. This needs multiple source segments;
-a force merge of one already-clean segment may do no work. A later ordinary merge
-can produce a flat segment again. This is not a continuous-ingestion lifecycle.
+Flushes and ordinary merges write flat vectors. A graph is built during a forced
+merge to one segment when `Options.buildOnForceMerge()` is set and the field has
+256 to `Options.maxGraphRows()` vectors (default 4,096). Otherwise, or if the build
+fails, the field stays flat; failures are logged to the `CuVSDiskAnn` info stream.
+The no-argument format used to open segments by name never builds graphs.
 
-This slice builds one graph for 256..4,096 vectors. Smaller or larger controlled
-merges stay flat. Bounded clustered stitching is a separate dependent change;
-this is not a large-partition construction result.
+Unfiltered queries on fields with a graph use it. Filtered queries, segments with
+deletions, visit limits and flat fields are scored exactly. Graph files are normal
+segment files with codec headers and footers. Because the native reader needs plain
+files, opening a segment copies them to a temporary directory under
+`Options.scratch()`, removed on close.
 
-Reader options are constructor-local. Lucene's named-format SPI uses the no-arg
-reader defaults unless the host registers its own format subclass with the same
-configuration, as the prototype fixture does. No machine path is persisted.
-The stock defaults are a 2 GiB per-reader raw cache under `java.io.tmpdir` and a
-search list of 128. Raw copies are required by the native path-based reader and
-are removed on normal close or failed open; process crashes can leave copies.
-There is no shared-cache quota or crash scavenger yet.
+Limits: at most 128 dimensions, one graph per field per segment, and searches on one
+segment's graph are serialized.
 
-Deletes and filters remain correct through exact fallback, not native filtered
-ANN. Those queries scan the segment and are not a 5B-scale performance result.
-Float32, squared L2, up to 128 dimensions and 4,096 vectors per graph are
-the current single-graph limits. The Microsoft DiskANN C API and generated Java
-bindings live in this fork. They are not published upstream dependencies.
-
-CPU-only library regression tests use the existing Maven/Lucene framework:
-
-```sh
-mvn -f java/cuvs-lucene/pom.xml -Dtest=TestDiskAnnLibrary test
-```
-
-The opt-in `DiskAnnCodecIT` tests live in this module and cover GPU construction,
-document identity, compound files, filters, deletes, corruption and reopening.
-Run `DISKANN_TEST_GPU=ON bash ci/test_diskann.sh` from the repository root to build
-and install both modules. See `c/diskann/README.md` for prerequisites.
-The explicit `diskann` Maven profile fails if its native library is unavailable.
-The OpenSearch harness is a separate, test-only consumer of this codec.
+`TestDiskAnnFormatDefaults` and `TestDiskAnnFlatMerges` need no GPU. Run all tests,
+including the GPU tests in `DiskAnnCodecIT`, with
+`DISKANN_TEST_GPU=ON bash ci/test_diskann.sh`.

@@ -97,11 +97,13 @@ public class TestDiskAnnFlatMerges extends LuceneTestCase {
         checkFields(reader);
         assertEquals(4200, reader.numDocs());
       }
-      for (String file : directory.listAll()) assertFalse(file.endsWith("_disk.index"));
+      for (String file : directory.listAll()) assertFalse(file.contains(".dki"));
     }
   }
 
   private static IndexWriterConfig config(MergePolicy policy) {
+    // One format instance serves both fields, as a codec normally returns.
+    var format = new GraphTestFormat();
     return new IndexWriterConfig()
         .setUseCompoundFile(true)
         .setMergePolicy(policy)
@@ -110,7 +112,7 @@ public class TestDiskAnnFlatMerges extends LuceneTestCase {
             new Lucene101Codec() {
               @Override
               public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new GraphTestFormat();
+                return format;
               }
             });
   }

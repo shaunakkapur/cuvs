@@ -571,8 +571,6 @@ navigation:
             path: "./pages/lucene_api/lucene-api-com-nvidia-cuvs-lucene-acceleratedhnswutils.md"
           - page: "CagraIndexParamsFactory"
             path: "./pages/lucene_api/lucene-api-com-nvidia-cuvs-lucene-cagraindexparamsfactory.md"
-          - page: "DiskAnnGraphBuilder"
-            path: "./pages/lucene_api/lucene-api-com-nvidia-cuvs-lucene-diskanngraphbuilder.md"
           - page: "FilterBitsetCacheConfig"
             path: "./pages/lucene_api/lucene-api-com-nvidia-cuvs-lucene-filterbitsetcacheconfig.md"
           - page: "FilterCuVSServiceProvider"

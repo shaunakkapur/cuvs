@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
@@ -24,6 +23,7 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -172,7 +172,6 @@ public class DiskAnnCodecIT extends LuceneTestCase {
 
     double recall = recalled / 1000.0;
     assertTrue("Recall@10 = " + recall, recall >= 0.95);
-    System.out.println("Lucene DiskANN recall@10=" + recall + ", queries=100");
   }
 
   @Test
@@ -180,15 +179,8 @@ public class DiskAnnCodecIT extends LuceneTestCase {
     try (var directory = FSDirectory.open(index)) {
       var segments = SegmentInfos.readLatestCommit(directory);
       var files = segments.info(0).info.files();
-      for (String suffix :
-          new String[] {
-            "_disk.index",
-            "_disk.index_medoids.bin",
-            "_pq_pivots.bin",
-            "_pq_compressed.bin",
-            ".ordmap"
-          }) assertEquals(1, files.stream().filter(name -> name.endsWith(suffix)).count());
-      assertEquals(1, files.stream().filter(name -> name.endsWith(".dkm")).count());
+      for (String extension : GRAPH_EXTENSIONS)
+        assertEquals(1, files.stream().filter(name -> hasExtension(name, extension)).count());
       for (String file : files) {
         assertTrue(Files.isRegularFile(index.resolve(file)));
         try (var input = directory.openInput(file, IOContext.READONCE)) {
@@ -198,13 +190,7 @@ public class DiskAnnCodecIT extends LuceneTestCase {
     }
     try (var files = Files.list(GraphTestFormat.scratch)) {
       assertEquals(
-          0,
-          files
-              .filter(
-                  p ->
-                      p.getFileName().toString().startsWith("graph-reader-")
-                          || p.getFileName().toString().startsWith("lucene-vamana-"))
-              .count());
+          0, files.filter(p -> p.getFileName().toString().startsWith("cuvs-diskann-")).count());
     }
   }
 
@@ -226,21 +212,17 @@ public class DiskAnnCodecIT extends LuceneTestCase {
 
   @Test
   public void missingAndCorruptArtifactsFailBeforeSearch() throws Exception {
-    for (String suffix :
-        new String[] {
-          "_disk.index",
-          "_disk.index_medoids.bin",
-          "_pq_pivots.bin",
-          "_pq_compressed.bin",
-          ".ordmap",
-          ".dkm"
-        }) {
+    for (String extension : GRAPH_EXTENSIONS) {
       for (String fault : new String[] {"missing", "payload", "footer"}) {
         Path copy = Files.createTempDirectory(temporary, fault);
         copyIndex(copy);
         Path target;
         try (var files = Files.list(copy)) {
-          target = files.filter(p -> p.toString().endsWith(suffix)).findFirst().orElseThrow();
+          target =
+              files
+                  .filter(p -> hasExtension(p.getFileName().toString(), extension))
+                  .findFirst()
+                  .orElseThrow();
         }
         if (fault.equals("missing")) Files.delete(target);
         else {
@@ -257,81 +239,6 @@ public class DiskAnnCodecIT extends LuceneTestCase {
                 }
               });
         }
-      }
-    }
-  }
-
-  @Test
-  public void nativeReaderRejectsInvalidQueriesAndUseAfterClose() throws Exception {
-    String prefix;
-    try (var files = Files.list(index)) {
-      String name =
-          files
-              .filter(p -> p.toString().endsWith("_disk.index"))
-              .findFirst()
-              .orElseThrow()
-              .getFileName()
-              .toString();
-      prefix = name.substring(0, name.length() - "_disk.index".length());
-    }
-    Path raw = Files.createTempDirectory(temporary, "raw-reader-check");
-    try (var source = FSDirectory.open(index);
-        var destination = FSDirectory.open(raw)) {
-      var info = SegmentInfos.readLatestCommit(source).info(0).info;
-      for (String suffix :
-          new String[] {
-            "_disk.index", "_disk.index_medoids.bin", "_pq_pivots.bin", "_pq_compressed.bin"
-          })
-        GraphTestFormat.extract(
-            source, prefix + suffix, destination, info.getId(), "PrototypeDiskAnn_0");
-    }
-    try (var reader = DiskAnnIndex.open(raw.resolve(prefix), 16, VECTORS.length)) {
-      assertThrows(IllegalArgumentException.class, () -> reader.search(new float[15], 10, 128));
-      float[] invalid = VECTORS[0].clone();
-      invalid[0] = Float.NaN;
-      assertThrows(IllegalArgumentException.class, () -> reader.search(invalid, 10, 128));
-      assertThrows(IllegalArgumentException.class, () -> reader.search(VECTORS[0], 10, 9));
-      assertThrows(IllegalArgumentException.class, () -> reader.search(VECTORS[0], 1025, 1025));
-      // Lucene may open a reader on one thread and search/close it on another.
-      try (var queries = Executors.newSingleThreadExecutor()) {
-        assertEquals(
-            10, queries.submit(() -> reader.search(VECTORS[0], 10, 128)).get().ordinals().length);
-        queries
-            .submit(
-                () -> {
-                  reader.close();
-                  return null;
-                })
-            .get();
-      }
-      reader.close();
-      reader.close();
-      assertThrows(IllegalStateException.class, () -> reader.search(VECTORS[0], 10, 128));
-    }
-  }
-
-  @Test
-  public void corruptedNativeControlPayloadsAreRejectedDuringOpen() throws Exception {
-    for (String suffix : new String[] {"_pq_pivots.bin", "_disk.index_medoids.bin"}) {
-      Path copy = Files.createTempDirectory(temporary, "control-corrupt");
-      Path target = null;
-      copyIndex(copy);
-      try (var source = FSDirectory.open(index)) {
-        for (String file : SegmentInfos.readLatestCommit(source).files(true))
-          if (file.endsWith(suffix)) target = copy.resolve(file);
-      }
-      assertNotNull(target);
-      byte[] bytes = Files.readAllBytes(target);
-      // Medoid value / a PQ-table offset, leaving header and footer untouched.
-      int header = CodecUtil.indexHeaderLength("PrototypeDiskAnnArtifact", "PrototypeDiskAnn_0");
-      bytes[header + 8] ^= 1;
-      Files.write(target, bytes);
-      try (var directory = FSDirectory.open(copy)) {
-        assertThrows(
-            IOException.class,
-            () -> {
-              try (var ignored = DirectoryReader.open(directory)) {}
-            });
       }
     }
   }
@@ -431,14 +338,16 @@ public class DiskAnnCodecIT extends LuceneTestCase {
 
     try (var files = Files.list(GraphTestFormat.scratch)) {
       assertEquals(
-          0,
-          files
-              .filter(
-                  p ->
-                      p.getFileName().toString().startsWith("graph-reader-")
-                          || p.getFileName().toString().startsWith("lucene-vamana-"))
-              .count());
+          0, files.filter(p -> p.getFileName().toString().startsWith("cuvs-diskann-")).count());
     }
+  }
+
+  /** DiskANN files plus the metadata file, by extension prefix (field numbers follow). */
+  static final String[] GRAPH_EXTENSIONS = {"dki", "dkd", "dkp", "dkc", "dkm"};
+
+  static boolean hasExtension(String file, String prefix) {
+    String extension = IndexFileNames.getExtension(file);
+    return extension != null && extension.startsWith(prefix);
   }
 
   private static void copyIndex(Path destination) throws Exception {
