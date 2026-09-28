@@ -265,7 +265,7 @@ SPDX-License-Identifier: Apache-2.0
                             <include>src/**/*.java</include>
                         </includes>
                         <excludes>
-                            <exclude>src/**/panama/*.java</exclude>
+                            <exclude>src/**/panama/**/*.java</exclude>
                         </excludes>
                         <!--
                             TODO: When we have more rules that should go to checkstyle or PMD
