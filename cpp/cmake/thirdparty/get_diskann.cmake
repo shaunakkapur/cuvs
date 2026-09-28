@@ -12,7 +12,21 @@ function(find_and_configure_diskann)
 
     include(${rapids-cmake-dir}/cpm/package_override.cmake)
   set(patch_dir "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../patches")
-  rapids_cpm_package_override("${patch_dir}/diskann_override.json")
+  set(diskann_override "${patch_dir}/diskann_override.json")
+  if(CUVS_DISKANN_READER)
+    # One dependency/pin, with reader-only patches. Do not change benchmark I/O behavior.
+    file(READ "${diskann_override}" reader_override)
+    string(REPLACE "\${current_json_dir}" "${patch_dir}" reader_override "${reader_override}")
+    file(GLOB reader_patches "${patch_dir}/diskann-*.diff")
+    foreach(patch IN LISTS reader_patches)
+      string(JSON patch_count LENGTH "${reader_override}" packages diskann patches)
+      string(JSON reader_override SET "${reader_override}" packages diskann patches ${patch_count}
+        "{\"file\":\"${patch}\",\"issue\":\"Experimental CPU reader safety and bounded buffers\",\"fixed_in\":\"\"}")
+    endforeach()
+    set(diskann_override "${CMAKE_CURRENT_BINARY_DIR}/diskann-reader-override.json")
+    file(WRITE "${diskann_override}" "${reader_override}")
+  endif()
+  rapids_cpm_package_override("${diskann_override}")
 
   include("${rapids-cmake-dir}/cpm/detail/package_info.cmake")
   rapids_cpm_package_info(diskann

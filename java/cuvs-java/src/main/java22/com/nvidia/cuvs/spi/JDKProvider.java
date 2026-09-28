@@ -35,6 +35,21 @@ import java.util.jar.Manifest;
 import java.util.logging.Level;
 
 final class JDKProvider implements CuVSProvider {
+  @Override
+  public DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count) throws IOException {
+    return new DiskAnnIndexImpl(prefix, dimension, count);
+  }
+
+  @Override
+  public void loadDiskAnnLibrary(Path library) throws IOException {
+    DiskAnnIndexImpl.loadLibrary(library);
+  }
+
+  @Override
+  public void prepareDiskAnnIndex(
+      Path data, Path graph, Path prefix, int chunks, int sample, int block) throws IOException {
+    DiskAnnIndexImpl.prepare(data, graph, prefix, chunks, sample, block);
+  }
 
   record CuVSVersion(short major, short minor, short patch) {
     private static final int MAX_VERSION_DISTANCE = 3;

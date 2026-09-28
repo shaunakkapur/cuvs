@@ -1,0 +1,2 @@
+# Patch context must preserve upstream whitespace.
+diskann-*.diff -whitespace

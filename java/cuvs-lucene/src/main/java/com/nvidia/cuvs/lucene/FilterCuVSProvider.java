@@ -31,6 +31,23 @@ import java.util.List;
 import java.util.logging.Level;
 
 class FilterCuVSProvider implements CuVSProvider {
+  @Override
+  public com.nvidia.cuvs.DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count)
+      throws java.io.IOException {
+    return delegate.openDiskAnnIndex(prefix, dimension, count);
+  }
+
+  @Override
+  public void loadDiskAnnLibrary(Path library) throws java.io.IOException {
+    delegate.loadDiskAnnLibrary(library);
+  }
+
+  @Override
+  public void prepareDiskAnnIndex(
+      Path data, Path graph, Path prefix, int chunks, int sample, int block)
+      throws java.io.IOException {
+    delegate.prepareDiskAnnIndex(data, graph, prefix, chunks, sample, block);
+  }
 
   private final CuVSProvider delegate;
 

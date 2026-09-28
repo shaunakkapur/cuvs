@@ -1,2 +1,0 @@
-# A space-only line is a valid empty context line in a unified diff.
-*.patch whitespace=-blank-at-eol

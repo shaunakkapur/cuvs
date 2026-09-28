@@ -67,13 +67,6 @@ public class DiskAnnVectorsFormat extends KnnVectorsFormat {
     }
   }
 
-  /** Optional observability hooks. They have no process-wide state. */
-  protected void graphBuilt(DiskAnnGraphBuilder.Built built) throws IOException {}
-
-  protected void graphSearched() {}
-
-  protected void artifactCopied(String file) throws IOException {}
-
   @Override
   public int getMaxDimensions(String field) {
     return 128;
@@ -189,7 +182,8 @@ public class DiskAnnVectorsFormat extends KnnVectorsFormat {
       if (!options.buildOnForceMerge()
           || state.context.mergeInfo() == null
           || state.context.mergeInfo().mergeMaxNumSegments() != 1
-          || count < 256) {
+          || count < 256
+          || count > options.limits().maxGraphRows()) {
         metadata(null);
         return;
       }
@@ -205,7 +199,19 @@ public class DiskAnnVectorsFormat extends KnnVectorsFormat {
         count = spool.count();
         var built = DiskAnnGraphBuilder.build(spool, scratch, limits, options.pqChunks());
         metadata(built);
-        graphBuilt(built);
+        if (state.infoStream.isEnabled("CuVSDiskAnn"))
+          state.infoStream.message(
+              "CuVSDiskAnn",
+              "rows="
+                  + built.count()
+                  + " subgraphs="
+                  + built.subgraphs()
+                  + " largest="
+                  + built.largestSubgraph()
+                  + " matrixBytes="
+                  + built.matrixBytes()
+                  + " scratchBytes="
+                  + built.scratchBytes());
       } catch (IOException | RuntimeException | Error e) {
         primary = e;
         throw e;
@@ -237,7 +243,6 @@ public class DiskAnnVectorsFormat extends KnnVectorsFormat {
         try (var input = state.directory.openInput(base + suffixes[i], IOContext.READONCE)) {
           checksums[i] = CodecUtil.retrieveChecksum(input);
         }
-        artifactCopied(base + suffixes[i]);
       }
       try (var meta = state.directory.createOutput(base + ".dkm", state.context)) {
         CodecUtil.writeIndexHeader(
@@ -372,7 +377,7 @@ public class DiskAnnVectorsFormat extends KnnVectorsFormat {
                     state.segmentInfo.getId(),
                     state.segmentSuffix);
           }
-          index = new DiskAnnIndex(extracted.resolve(base), field.getVectorDimension(), count);
+          index = DiskAnnIndex.open(extracted.resolve(base), field.getVectorDimension(), count);
         }
         success = true;
       } finally {
@@ -433,7 +438,6 @@ public class DiskAnnVectorsFormat extends KnnVectorsFormat {
       int searchList = options.searchList();
       if (searchList < 1) throw new IllegalArgumentException("Search list must be positive");
       var result = index.search(query, k, Math.min(count, Math.max(k, searchList)));
-      graphSearched();
       var seen = new HashSet<Long>();
       for (int i = 0; i < k; i++) {
         long ord = result.ordinals()[i];

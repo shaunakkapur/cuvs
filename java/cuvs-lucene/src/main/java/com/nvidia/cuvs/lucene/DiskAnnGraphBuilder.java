@@ -140,7 +140,7 @@ public final class DiskAnnGraphBuilder {
         }
       }
     } catch (Throwable e) {
-      if (e instanceof Error error && !(error instanceof UnsatisfiedLinkError)) throw error;
+      if (e instanceof Error error && !(error instanceof LinkageError)) throw error;
       throw new IOException("cuVS graph build failed", e);
     }
   }
@@ -156,7 +156,7 @@ public final class DiskAnnGraphBuilder {
       throws IOException {
     // Validate the private output before the codec copies any artifact into
     // the segment. Opening checks count/dimension; a probe checks ID/score use.
-    try (var reader = new DiskAnnIndex(prefix, spool.dimension(), spool.count());
+    try (var reader = DiskAnnIndex.open(prefix, spool.dimension(), spool.count());
         var dataFile = new RandomAccessFile(spool.data().toFile(), "r")) {
       float[] query = spool.sample()[0];
       var probe = reader.search(query, 1, Math.min(128, spool.count()));

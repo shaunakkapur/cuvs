@@ -68,4 +68,13 @@ jextract \
  --library cudart \
  "${CURDIR}"/headers.h
 
+# The optional CPU reader has a separate symbol lookup so normal GPU APIs do not load it.
+jextract --include-dir "${REPODIR}/c/include" \
+ --include-dir "${REPODIR}/java/internal/build/bindings/include" \
+ --include-dir "${CUDA_INCLUDE_DIR}" --output "${OUTPUT_DIR}" \
+ --target-package "${TARGET_PACKAGE}.diskann" --header-class-name diskann_h \
+ --include-function cuvsDiskAnnOpen --include-function cuvsDiskAnnSearch \
+ --include-function cuvsDiskAnnClose --include-function cuvsDiskAnnPrepare --include-function cuvsGetLastErrorText \
+ --include-constant CUVS_SUCCESS --include-constant CUVS_ERROR "${REPODIR}/c/include/cuvs/neighbors/diskann.h"
+
 echo "Panama FFM API bindings generation done"
