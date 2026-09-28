@@ -28,7 +28,8 @@ public class DiskAnnIndexIT {
 
   @org.junit.BeforeClass
   public static void loadLibrary() throws IOException {
-    org.junit.Assume.assumeNotNull(System.getProperty("diskann.library"));
+    if (System.getProperty("diskann.library") == null)
+      throw new IllegalStateException("Set diskann.library for the diskann profile");
     DiskAnnIndex.loadLibrary(Path.of(System.getProperty("diskann.library")));
   }
 
@@ -44,9 +45,9 @@ public class DiskAnnIndexIT {
   @Test
   public void rejectsMissingArtifactsAndInvalidDimensions() {
     Path prefix = directory.resolve("missing");
-    assertThrows(IOException.class, () -> new DiskAnnIndex(prefix, 16, 256));
-    assertThrows(IllegalArgumentException.class, () -> new DiskAnnIndex(prefix, 0, 256));
-    assertThrows(IllegalArgumentException.class, () -> new DiskAnnIndex(prefix, 16, 1_000_001));
+    assertThrows(IOException.class, () -> DiskAnnIndex.open(prefix, 16, 256));
+    assertThrows(IllegalArgumentException.class, () -> DiskAnnIndex.open(prefix, 0, 256));
+    assertThrows(IllegalArgumentException.class, () -> DiskAnnIndex.open(prefix, 16, 1_000_001));
   }
 
   @Test
@@ -81,7 +82,7 @@ public class DiskAnnIndexIT {
 
     Path prefix = directory.resolve("read-failure");
     DiskAnnIndex.prepare(data, graph, prefix, 1);
-    try (DiskAnnIndex reader = new DiskAnnIndex(prefix, dimension, count)) {
+    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, dimension, count)) {
       DiskAnnIndex.Results results = reader.search(new float[] {42, 8}, 5, count);
       assertEquals(5, results.ordinals().length);
       assertEquals(5, results.distances().length);
@@ -89,25 +90,25 @@ public class DiskAnnIndexIT {
     Path diskIndex = directory.resolve("read-failure_disk.index");
     overwriteLong(diskIndex, 8, count + 1L);
     IOException invalidDisk =
-        assertThrows(IOException.class, () -> new DiskAnnIndex(prefix, dimension, count));
+        assertThrows(IOException.class, () -> DiskAnnIndex.open(prefix, dimension, count));
     assertTrue(invalidDisk.getMessage().contains("Invalid disk index metadata"));
     overwriteLong(diskIndex, 8, count);
 
     Path compressed = directory.resolve("read-failure_pq_compressed.bin");
     overwriteInt(compressed, 0, 1_000_000);
     IOException invalidCompressed =
-        assertThrows(IOException.class, () -> new DiskAnnIndex(prefix, dimension, count));
+        assertThrows(IOException.class, () -> DiskAnnIndex.open(prefix, dimension, count));
     assertTrue(invalidCompressed.getMessage().contains("Invalid matrix file"));
     overwriteInt(compressed, 0, count);
 
     Path pivots = directory.resolve("read-failure_pq_pivots.bin");
     overwriteInt(pivots, 4096, 255);
     IOException invalidPivots =
-        assertThrows(IOException.class, () -> new DiskAnnIndex(prefix, dimension, count));
+        assertThrows(IOException.class, () -> DiskAnnIndex.open(prefix, dimension, count));
     assertTrue(invalidPivots.getMessage().contains("Invalid PQ pivot metadata"));
     overwriteInt(pivots, 4096, 256);
 
-    try (DiskAnnIndex reader = new DiskAnnIndex(prefix, dimension, count);
+    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, dimension, count);
         FileChannel disk =
             FileChannel.open(
                 directory.resolve("read-failure_disk.index"), StandardOpenOption.WRITE)) {
@@ -135,7 +136,7 @@ public class DiskAnnIndexIT {
 
     Path prefix = directory.resolve("disconnected-index");
     DiskAnnIndex.prepare(data, graph, prefix, 1);
-    try (DiskAnnIndex reader = new DiskAnnIndex(prefix, dimension, count)) {
+    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, dimension, count)) {
       IOException failure =
           assertThrows(IOException.class, () -> reader.search(new float[] {42, 8}, 5, count));
       assertTrue(failure.getMessage().contains("fewer results than requested"));

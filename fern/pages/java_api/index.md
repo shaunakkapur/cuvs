@@ -15,6 +15,7 @@ For the Apache Lucene codecs built on this API, see the [Lucene API Documentatio
 - [CuVSResourcesInfo](/api-reference/java-api-com-nvidia-cuvs-cuvsresourcesinfo)
 - [CuVSServiceProvider](/api-reference/java-api-com-nvidia-cuvs-spi-cuvsserviceprovider)
 - [DelegatingScopedAccess](/api-reference/java-api-com-nvidia-cuvs-delegatingscopedaccess)
+- [DiskAnnIndex](/api-reference/java-api-com-nvidia-cuvs-diskannindex)
 - [FilterBitsetHandle](/api-reference/java-api-com-nvidia-cuvs-filterbitsethandle)
 - [GPUInfo](/api-reference/java-api-com-nvidia-cuvs-gpuinfo)
 - [GPUInfoProvider](/api-reference/java-api-com-nvidia-cuvs-gpuinfoprovider)

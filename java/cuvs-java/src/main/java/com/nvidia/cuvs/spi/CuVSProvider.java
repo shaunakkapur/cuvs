@@ -12,10 +12,24 @@ import java.time.Duration;
 import java.util.BitSet;
 import java.util.List;
 
-/**
- * A provider of low-level cuvs resources and builders.
- */
+/** A provider of low-level cuvs resources and builders. */
 public interface CuVSProvider {
+  /** Optional CPU reader. The default preserves compatibility with existing providers. */
+  default DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count)
+      throws java.io.IOException {
+    throw new UnsupportedOperationException("DiskANN reader is not supported by this provider");
+  }
+
+  default void loadDiskAnnLibrary(Path library) throws java.io.IOException {
+    throw new UnsupportedOperationException("DiskANN reader is not supported by this provider");
+  }
+
+  default void prepareDiskAnnIndex(
+      Path data, Path graph, Path prefix, int chunks, int sample, int block)
+      throws java.io.IOException {
+    throw new UnsupportedOperationException(
+        "DiskANN preparation is not supported by this provider");
+  }
 
   Path TMPDIR = Path.of(System.getProperty("java.io.tmpdir"));
 
