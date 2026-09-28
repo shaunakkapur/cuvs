@@ -13,6 +13,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.Executors;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -65,28 +66,13 @@ public class DiskAnnIndexIT {
 
   @Test
   public void rejectsMalformedArtifactsAndReportsTruncatedReads() throws Exception {
-    int count = 256, dimension = 2;
-    Path data = directory.resolve("vectors.bin");
-    ByteBuffer vectors =
-        ByteBuffer.allocate(8 + count * dimension * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-    vectors.putInt(count).putInt(dimension);
-    for (int i = 0; i < count; i++) vectors.putFloat(i).putFloat(i % 17);
-    Files.write(data, vectors.array());
-
-    Path graph = directory.resolve("graph.bin");
-    ByteBuffer edges =
-        ByteBuffer.allocate(24 + count * 2 * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-    edges.putLong(edges.capacity()).putInt(1).putInt(0).putLong(0);
-    for (int i = 0; i < count; i++) edges.putInt(1).putInt((i + 1) % count);
-    Files.write(graph, edges.array());
-
-    Path prefix = directory.resolve("read-failure");
-    DiskAnnIndex.prepare(data, graph, prefix, 1);
-    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, dimension, count)) {
-      DiskAnnIndex.Results results = reader.search(new float[] {42, 8}, 5, count);
+    Path prefix = prepareRing("read-failure", true);
+    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, DIMENSION, COUNT)) {
+      DiskAnnIndex.Results results = reader.search(new float[] {42, 8}, 5, COUNT);
       assertEquals(5, results.ordinals().length);
       assertEquals(5, results.distances().length);
     }
+    int count = COUNT, dimension = DIMENSION;
     Path diskIndex = directory.resolve("read-failure_disk.index");
     overwriteLong(diskIndex, 8, count + 1L);
     IOException invalidDisk =
@@ -119,28 +105,60 @@ public class DiskAnnIndexIT {
 
   @Test
   public void reportsWhenTheGraphCannotProduceEnoughResults() throws Exception {
-    int count = 256, dimension = 2;
-    Path data = directory.resolve("disconnected-vectors.bin");
-    ByteBuffer vectors =
-        ByteBuffer.allocate(8 + count * dimension * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-    vectors.putInt(count).putInt(dimension);
-    for (int i = 0; i < count; i++) vectors.putFloat(i).putFloat(i % 17);
-    Files.write(data, vectors.array());
-
-    Path graph = directory.resolve("disconnected-graph.bin");
-    ByteBuffer edges =
-        ByteBuffer.allocate(24 + count * 2 * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-    edges.putLong(edges.capacity()).putInt(1).putInt(0).putLong(0);
-    for (int i = 0; i < count; i++) edges.putInt(1).putInt(i);
-    Files.write(graph, edges.array());
-
-    Path prefix = directory.resolve("disconnected-index");
-    DiskAnnIndex.prepare(data, graph, prefix, 1);
-    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, dimension, count)) {
+    Path prefix = prepareRing("disconnected", false);
+    try (DiskAnnIndex reader = DiskAnnIndex.open(prefix, DIMENSION, COUNT)) {
       IOException failure =
-          assertThrows(IOException.class, () -> reader.search(new float[] {42, 8}, 5, count));
+          assertThrows(IOException.class, () -> reader.search(new float[] {42, 8}, 5, COUNT));
       assertTrue(failure.getMessage().contains("fewer results than requested"));
     }
+  }
+
+  @Test
+  public void rejectsInvalidQueriesAndUseAfterClose() throws Exception {
+    Path prefix = prepareRing("lifecycle", true);
+    DiskAnnIndex reader = DiskAnnIndex.open(prefix, DIMENSION, COUNT);
+    float[] query = {3, 4};
+    assertThrows(IllegalArgumentException.class, () -> reader.search(new float[1], 5, 16));
+    assertThrows(
+        IllegalArgumentException.class, () -> reader.search(new float[] {Float.NaN, 0}, 5, 16));
+    assertThrows(IllegalArgumentException.class, () -> reader.search(query, 5, 4));
+    assertThrows(IllegalArgumentException.class, () -> reader.search(query, COUNT + 1, COUNT + 1));
+    // Lucene may open a reader on one thread and search or close it on another.
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      assertEquals(5, executor.submit(() -> reader.search(query, 5, 16)).get().ordinals().length);
+      executor
+          .submit(
+              () -> {
+                reader.close();
+                return null;
+              })
+          .get();
+    }
+    reader.close();
+    assertThrows(IllegalStateException.class, () -> reader.search(query, 5, 16));
+  }
+
+  private static final int COUNT = 256, DIMENSION = 2;
+
+  /** Writes a 2-D fixture, a ring graph (or self-loops only) over it, and prepares an index. */
+  private Path prepareRing(String name, boolean connected) throws IOException {
+    Path data = directory.resolve(name + "-vectors.bin");
+    ByteBuffer vectors =
+        ByteBuffer.allocate(8 + COUNT * DIMENSION * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+    vectors.putInt(COUNT).putInt(DIMENSION);
+    for (int i = 0; i < COUNT; i++) vectors.putFloat(i).putFloat(i % 17);
+    Files.write(data, vectors.array());
+
+    Path graph = directory.resolve(name + "-graph.bin");
+    ByteBuffer edges =
+        ByteBuffer.allocate(24 + COUNT * 2 * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+    edges.putLong(edges.capacity()).putInt(1).putInt(0).putLong(0);
+    for (int i = 0; i < COUNT; i++) edges.putInt(1).putInt(connected ? (i + 1) % COUNT : i);
+    Files.write(graph, edges.array());
+
+    Path prefix = directory.resolve(name);
+    DiskAnnIndex.prepare(data, graph, prefix, 1);
+    return prefix;
   }
 
   private static void overwriteInt(Path path, long offset, int value) throws IOException {

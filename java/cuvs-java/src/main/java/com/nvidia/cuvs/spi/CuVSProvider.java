@@ -5,6 +5,7 @@
 package com.nvidia.cuvs.spi;
 
 import com.nvidia.cuvs.*;
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.nio.file.Path;
@@ -12,21 +13,24 @@ import java.time.Duration;
 import java.util.BitSet;
 import java.util.List;
 
-/** A provider of low-level cuvs resources and builders. */
+/**
+ * A provider of low-level cuvs resources and builders.
+ */
 public interface CuVSProvider {
-  /** Optional CPU reader. The default preserves compatibility with existing providers. */
-  default DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count)
-      throws java.io.IOException {
+  /**
+   * Opens the optional DiskANN CPU reader. The defaults below keep existing providers
+   * source-compatible; providers without the native library throw.
+   */
+  default DiskAnnIndex openDiskAnnIndex(Path prefix, int dimension, int count) throws IOException {
     throw new UnsupportedOperationException("DiskANN reader is not supported by this provider");
   }
 
-  default void loadDiskAnnLibrary(Path library) throws java.io.IOException {
+  default void loadDiskAnnLibrary(Path library) throws IOException {
     throw new UnsupportedOperationException("DiskANN reader is not supported by this provider");
   }
 
   default void prepareDiskAnnIndex(
-      Path data, Path graph, Path prefix, int chunks, int sample, int block)
-      throws java.io.IOException {
+      Path data, Path graph, Path prefix, int chunks, int sample, int block) throws IOException {
     throw new UnsupportedOperationException(
         "DiskANN preparation is not supported by this provider");
   }
