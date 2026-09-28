@@ -55,7 +55,7 @@ cmake -S "$repo_dir/java/internal" -B "$repo_dir/java/internal/build" \
   -DFIND_CUVS_CPP=ON -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"
 cmake -E copy_directory "$repo_dir/c/include/cuvs" "$repo_dir/java/internal/build/bindings/include/cuvs"
 (cd "$repo_dir/java" && bash panama-bindings/generate-bindings.sh)
-for module in cuvs-java; do
+for module in cuvs-java cuvs-lucene; do
   mvn -B -Dmaven.repo.local="$maven_repo" -f "$repo_dir/java/$module/pom.xml" \
     -DskipTests -Dmaven.javadoc.skip=true install
 done

@@ -7,3 +7,4 @@ com.nvidia.cuvs.lucene.CuVS2510GPUVectorsFormat
 com.nvidia.cuvs.lucene.Lucene99AcceleratedHNSWVectorsFormat
 com.nvidia.cuvs.lucene.LuceneAcceleratedHNSWBinaryQuantizedVectorsFormat
 com.nvidia.cuvs.lucene.LuceneAcceleratedHNSWScalarQuantizedVectorsFormat
+com.nvidia.cuvs.lucene.DiskAnnVectorsFormat
