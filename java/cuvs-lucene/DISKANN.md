@@ -25,8 +25,8 @@ There is no shared-cache quota or crash scavenger yet.
 
 Deletes and filters remain correct through exact fallback, not native filtered
 ANN. Those queries scan the segment and are not a 5B-scale performance result.
-Float32, squared L2, up to 128 dimensions and 1M vectors per built partition are
-the current tested feasibility envelope. Microsoft DiskANN and the JNI bridge
+Float32, squared L2, up to 128 dimensions and 4,096 vectors per graph are
+the current single-graph limits. Microsoft DiskANN and the JNI bridge
 are provisional fork dependencies, not upstream integration commitments.
 
 CPU-only library regression tests use the existing Maven/Lucene framework:
@@ -35,8 +35,8 @@ CPU-only library regression tests use the existing Maven/Lucene framework:
 mvn -f java/cuvs-lucene/pom.xml -Dtest=TestDiskAnnLibrary test
 ```
 
-The prototype keeps the opt-in GPU, document-identity, compound-file, reopened
-reader and embedded OpenSearch installation tests. Its plugin consumes this JAR;
+The prototype keeps the opt-in GPU, document-identity, compound-file and reopened
+reader tests. The OpenSearch installation harness is a later dependent change;
 it does not implement the codec or native reader.
 
 Build with `java/internal/diskann/setup.sh`. This produces
