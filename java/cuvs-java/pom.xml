@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
     <artifactId>cuvs-java</artifactId>
     <!-- NOTE: The version automatically gets updated when ci/release/update-version.sh is invoked. -->
     <!-- Fork-only coordinate prevents replacing a stock cuvs-java cache entry. -->
-    <!--CUVS_JAVA#VERSION_UPDATE_MARKER_START--><version>26.12.0-diskann-codec-SNAPSHOT</version><!--CUVS_JAVA#VERSION_UPDATE_MARKER_END-->
+    <!--CUVS_JAVA#VERSION_UPDATE_MARKER_START--><version>26.12.0-diskann-reader-SNAPSHOT</version><!--CUVS_JAVA#VERSION_UPDATE_MARKER_END-->
     <name>cuvs-java</name>
     <description>
         This project provides Java bindings for cuVS, enabling approximate nearest neighbors search and clustering

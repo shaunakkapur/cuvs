@@ -37,7 +37,7 @@ mvn -f java/cuvs-lucene/pom.xml -Dtest=TestDiskAnnLibrary test
 
 The opt-in `DiskAnnCodecIT` tests live in this module and cover GPU construction,
 document identity, compound files, filters, deletes, corruption and reopening.
-Run `DISKANN_TEST_GPU=ON bash ci/test_diskann.sh` from the repository root, after
-installing the reader dependency. See `c/diskann/README.md` for prerequisites.
+Run `DISKANN_TEST_GPU=ON bash ci/test_diskann.sh` from the repository root to build
+and install both modules. See `c/diskann/README.md` for prerequisites.
 The explicit `diskann` Maven profile fails if its native library is unavailable.
 The OpenSearch harness is a separate, test-only consumer of this codec.

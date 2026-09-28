@@ -8,7 +8,7 @@ set -e -u -o pipefail
 ARGS="$*"
 NUMARGS=$#
 
-VERSION="26.12.0" # Note: The version is updated automatically when ci/release/update-version.sh is invoked
+VERSION="26.12.0-diskann-codec-SNAPSHOT" # Note: The version is updated automatically when ci/release/update-version.sh is invoked
 CUVS_JAVA_VERSION="26.12.0-diskann-reader-SNAPSHOT"
 GROUP_ID="com.nvidia.cuvs.lucene"
 
