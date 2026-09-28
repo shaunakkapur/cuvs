@@ -1,20 +1,49 @@
 diff --git a/src/linux_aligned_file_reader.cpp b/src/linux_aligned_file_reader.cpp
-index 067e3647..06afc616 100644
+index 067e3647..4535ab8f 100644
 --- a/src/linux_aligned_file_reader.cpp
 +++ b/src/linux_aligned_file_reader.cpp
-@@ -17,6 +17,28 @@ typedef struct iocb iocb_t;
+@@ -17,76 +17,25 @@ typedef struct iocb iocb_t;
  
  void execute_io(io_context_t ctx, int fd, std::vector<AlignedRead> &read_reqs, uint64_t n_retries = 0)
  {
-+    // The JNI prototype uses synchronous reads so a failed request cannot leave
-+    // kernel AIO operations referring to buffers whose stack has unwound.
+-#ifdef DEBUG
+-    for (auto &req : read_reqs)
++    // Synchronous reads let a failed request throw instead of calling exit(),
++    // and cannot leave kernel AIO operations referring to released buffers.
 +    (void)ctx;
 +    (void)n_retries;
 +    for (const auto &req : read_reqs)
-+    {
+     {
+-        assert(IS_ALIGNED(req.len, 512));
+-        // std::cout << "request:"<<req.offset<<":"<<req.len << std::endl;
+-        assert(IS_ALIGNED(req.offset, 512));
+-        assert(IS_ALIGNED(req.buf, 512));
+-        // assert(malloc_usable_size(req.buf) >= req.len);
+-    }
+-#endif
+-
+-    // break-up requests into chunks of size MAX_EVENTS each
+-    uint64_t n_iters = ROUND_UP(read_reqs.size(), MAX_EVENTS) / MAX_EVENTS;
+-    for (uint64_t iter = 0; iter < n_iters; iter++)
+-    {
+-        uint64_t n_ops = std::min((uint64_t)read_reqs.size() - (iter * MAX_EVENTS), (uint64_t)MAX_EVENTS);
+-        std::vector<iocb_t *> cbs(n_ops, nullptr);
+-        std::vector<io_event_t> evts(n_ops);
+-        std::vector<struct iocb> cb(n_ops);
+-        for (uint64_t j = 0; j < n_ops; j++)
+-        {
+-            io_prep_pread(cb.data() + j, fd, read_reqs[j + iter * MAX_EVENTS].buf, read_reqs[j + iter * MAX_EVENTS].len,
+-                          read_reqs[j + iter * MAX_EVENTS].offset);
+-        }
+-
+-        // initialize `cbs` using `cb` array
+-        //
+-
+-        for (uint64_t i = 0; i < n_ops; i++)
 +        size_t completed = 0;
 +        while (completed < req.len)
-+        {
+         {
+-            cbs[i] = cb.data() + i;
 +            ssize_t result = ::pread(fd, static_cast<char *>(req.buf) + completed, req.len - completed,
 +                                     req.offset + completed);
 +            if (result < 0 && errno == EINTR)
@@ -24,37 +53,73 @@ index 067e3647..06afc616 100644
 +            if (result == 0)
 +                throw diskann::ANNException("Unexpected end of disk index", -1, __FUNCSIG__, __FILE__, __LINE__);
 +            completed += (size_t)result;
-+        }
-+    }
-+    return;
-+#if 0
- #ifdef DEBUG
-     for (auto &req : read_reqs)
-     {
-@@ -88,6 +110,7 @@ void execute_io(io_context_t ctx, int fd, std::vector<AlignedRead> &read_reqs, u
          }
-         */
+-
+-        uint64_t n_tries = 0;
+-        while (n_tries <= n_retries)
+-        {
+-            // issue reads
+-            int64_t ret = io_submit(ctx, (int64_t)n_ops, cbs.data());
+-            // if requests didn't get accepted
+-            if (ret != (int64_t)n_ops)
+-            {
+-                std::cerr << "io_submit() failed; returned " << ret << ", expected=" << n_ops << ", ernno=" << errno
+-                          << "=" << ::strerror(-ret) << ", try #" << n_tries + 1;
+-                std::cout << "ctx: " << ctx << "\n";
+-                exit(-1);
+-            }
+-            else
+-            {
+-                // wait on io_getevents
+-                ret = io_getevents(ctx, (int64_t)n_ops, (int64_t)n_ops, evts.data(), nullptr);
+-                // if requests didn't complete
+-                if (ret != (int64_t)n_ops)
+-                {
+-                    std::cerr << "io_getevents() failed; returned " << ret << ", expected=" << n_ops
+-                              << ", ernno=" << errno << "=" << ::strerror(-ret) << ", try #" << n_tries + 1;
+-                    exit(-1);
+-                }
+-                else
+-                {
+-                    break;
+-                }
+-            }
+-        }
+-        // disabled since req.buf could be an offset into another buf
+-        /*
+-        for (auto &req : read_reqs) {
+-          // corruption check
+-          assert(malloc_usable_size(req.buf) >= req.len);
+-        }
+-        */
      }
-+#endif
  }
  } // namespace
- 
-@@ -142,6 +165,10 @@ void LinuxAlignedFileReader::register_thread()
+@@ -142,35 +91,21 @@ void LinuxAlignedFileReader::register_thread()
          std::cerr << "multiple calls to register_thread from the same thread" << std::endl;
          return;
      }
+-    io_context_t ctx = 0;
+-    int ret = io_setup(MAX_EVENTS, &ctx);
+-    if (ret != 0)
+-    {
+-        if (ret == -EAGAIN)
+-        {
+-            std::cerr << "io_setup() failed with EAGAIN: Consider increasing /proc/sys/fs/aio-max-nr" << std::endl;
+-        }
+-        else
+-        {
+-            std::cerr << "io_setup() failed; returned " << ret << ": " << ::strerror(-ret) << std::endl;
+-        }
+-    }
+-    else
+-    {
+-        diskann::cout << "allocating ctx: " << ctx << " to thread-id:" << my_id << std::endl;
+-        ctx_map[my_id] = ctx;
+-    }
 +    // Synchronous pread does not consume a Linux AIO context.
 +    ctx_map[my_id] = 0;
 +    return;
-+#if 0
-     io_context_t ctx = 0;
-     int ret = io_setup(MAX_EVENTS, &ctx);
-     if (ret != 0)
-@@ -160,17 +187,19 @@ void LinuxAlignedFileReader::register_thread()
-         diskann::cout << "allocating ctx: " << ctx << " to thread-id:" << my_id << std::endl;
-         ctx_map[my_id] = ctx;
-     }
-+#endif
  }
  
  void LinuxAlignedFileReader::deregister_thread()
@@ -72,7 +137,7 @@ index 067e3647..06afc616 100644
      //  assert(ret == 0);
      lk.lock();
      ctx_map.erase(my_id);
-@@ -184,7 +213,7 @@ void LinuxAlignedFileReader::deregister_all_threads()
+@@ -184,7 +119,7 @@ void LinuxAlignedFileReader::deregister_all_threads()
      for (auto x = ctx_map.begin(); x != ctx_map.end(); x++)
      {
          io_context_t ctx = x.value();
@@ -81,7 +146,7 @@ index 067e3647..06afc616 100644
          //  assert(ret == 0);
          //  lk.lock();
          //  ctx_map.erase(my_id);
-@@ -199,7 +228,8 @@ void LinuxAlignedFileReader::open(const std::string &fname)
+@@ -199,7 +134,8 @@ void LinuxAlignedFileReader::open(const std::string &fname)
      int flags = O_DIRECT | O_RDONLY | O_LARGEFILE;
      this->file_desc = ::open(fname.c_str(), flags);
      // error checks
@@ -91,7 +156,7 @@ index 067e3647..06afc616 100644
      std::cerr << "Opened file : " << fname << std::endl;
  }
  
-@@ -221,6 +251,7 @@ void LinuxAlignedFileReader::read(std::vector<AlignedRead> &read_reqs, io_contex
+@@ -221,6 +157,7 @@ void LinuxAlignedFileReader::read(std::vector<AlignedRead> &read_reqs, io_contex
      {
          diskann::cout << "Async currently not supported in linux." << std::endl;
      }

@@ -239,8 +239,9 @@ if(BUILD_TESTS)
   add_subdirectory(tests)
 endif()
 
-# Experimental optional CPU reader. The standalone c/diskann build can also use installed cuVS.
-option(BUILD_DISKANN_READER "Build the experimental DiskANN C API" OFF)
+# Optional DiskANN CPU reader (see c/diskann/README.md). Off by default because it
+# needs CPU dependencies (MKL, Boost, libaio, gperftools) that libcuvs does not.
+option(BUILD_DISKANN_READER "Build the optional DiskANN C API" OFF)
 if(BUILD_DISKANN_READER)
   add_subdirectory(diskann)
 endif()

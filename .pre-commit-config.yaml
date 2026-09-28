@@ -12,6 +12,8 @@ repos:
     hooks:
       - id: check-json
       - id: trailing-whitespace
+        # Dependency patches must keep upstream whitespace in their context lines.
+        exclude: ^cpp/cmake/patches/.*[.]diff$
       - id: end-of-file-fixer
       - id: check-symlinks
       - id: check-xml

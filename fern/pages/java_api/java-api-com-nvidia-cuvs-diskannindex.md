@@ -15,6 +15,16 @@ independent.
 
 ## Public Members
 
+### of
+
+```java
+List<String> PREPARED_FILES = List.of("_disk.index", "_disk.index_medoids.bin", "_pq_pivots.bin", "_pq_compressed.bin")
+```
+
+Files written by `#prepare`, as suffixes of its output prefix.
+
+_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:18`_
+
 ### loadLibrary
 
 ```java
@@ -23,16 +33,18 @@ static void loadLibrary(Path library) throws IOException
 
 Load the optional C library from an explicit path before opening readers.
 
-_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:25`_
+_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:30`_
 
 ### prepare
 
 ```java
-static String[] prepare( Path data, Path graph, Path prefix, int pqChunks, int sampleRows, int blockRows) throws IOException
+static void prepare( Path data, Path graph, Path prefix, int pqChunks, int sampleRows, int blockRows) throws IOException
 ```
 
-Bounded plain-PQ conversion; returns the files produced relative to prefix.
+Converts a serialized cuVS Vamana graph and its vectors into a disk index with plain PQ,
+writing `#PREPARED_FILES` under `prefix`. PQ training uses at most \{@code
+sampleRows\} vectors and encoding reads `blockRows` vectors at a time.
 
-_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:34`_
+_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:43`_
 
-_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:16`_
+_Source: `java/cuvs-java/src/main/java/com/nvidia/cuvs/DiskAnnIndex.java:17`_

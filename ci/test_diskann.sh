@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-# Optional fork-CI/local entrypoint. Uses an existing cuVS + DiskANN development environment.
+# Builds the optional DiskANN C library and runs its CPU tests. See c/diskann/README.md.
 set -euo pipefail
 repo_dir="$(cd -- "$(dirname -- "$0")/.." && pwd)"
-: "${CONDA_PREFIX:?Activate the compatible cuVS development environment}"
-: "${JAVA_HOME:?Use JDK 22}"
+: "${CONDA_PREFIX:?Activate a cuVS development environment}"
+: "${JAVA_HOME:?Set JAVA_HOME to JDK 22}"
 cd "$repo_dir"
+diskann_build="${DISKANN_BUILD:-$repo_dir/c/diskann/build}"
+maven_repo="${MAVEN_LOCAL_REPO:-$diskann_build/m2}"
 bash c/diskann/build.sh
 cmake -S java/internal -B java/internal/build -DFIND_CUVS_CPP=ON -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"
 cmake -E copy_directory c/include/cuvs java/internal/build/bindings/include/cuvs
 (cd java && bash panama-bindings/generate-bindings.sh)
-reader_library="${DISKANN_BUILD:-$repo_dir/c/diskann/build}/libcuvs_diskann.so"
 mvn -B -f java/cuvs-java/pom.xml -Pdiskann -Dit.test=DiskAnnIndexIT \
-  -Ddiskann.library="$reader_library" -Dmaven.javadoc.skip=true install
-# This branch owns codec tests. They explicitly require a working tiny GPU fixture.
+  -Dmaven.repo.local="$maven_repo" -Ddiskann.library="$diskann_build/libcuvs_diskann.so" \
+  -Dmaven.javadoc.skip=true install
+# cuvs-lucene: CPU tests always run; the GPU codec tests (DiskAnnCodecIT) need a GPU.
+lucene_args=(-B -f java/cuvs-lucene/pom.xml -Dmaven.repo.local="$maven_repo" -Dmaven.javadoc.skip=true
+  -Dtest="TestDiskAnn*" -Dsurefire.failIfNoSpecifiedTests=false)
 if [[ "${DISKANN_TEST_GPU:-OFF}" == "ON" ]]; then
   nvidia-smi
-  mvn -B -f java/cuvs-lucene/pom.xml -Pdiskann \
-    -Dtest=TestDiskAnnLibrary,TestDiskAnnFlatMerges \
-    -Ddiskann.library="$reader_library" -Dmaven.javadoc.skip=true install
+  mvn "${lucene_args[@]}" -Pdiskann -Ddiskann.library="$diskann_build/libcuvs_diskann.so" install
 else
-  mvn -B -f java/cuvs-lucene/pom.xml -DskipTests -Dmaven.javadoc.skip=true install
+  mvn "${lucene_args[@]}" install
 fi

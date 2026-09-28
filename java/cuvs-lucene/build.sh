@@ -8,8 +8,7 @@ set -e -u -o pipefail
 ARGS="$*"
 NUMARGS=$#
 
-VERSION="26.12.0-diskann-codec-SNAPSHOT" # Note: The version is updated automatically when ci/release/update-version.sh is invoked
-CUVS_JAVA_VERSION="26.12.0-diskann-reader-SNAPSHOT"
+VERSION="26.12.0" # Note: The version is updated automatically when ci/release/update-version.sh is invoked
 GROUP_ID="com.nvidia.cuvs.lucene"
 
 function hasArg {
@@ -23,8 +22,8 @@ REPODIR="$(cd "${LUCENE_DIR}"/../.. && pwd)"
 # cuvs-lucene compiles against the cuvs-java artifact built by this repo, which
 # './build.sh java' installs into the local Maven repository.
 MAVEN_LOCAL_REPO="${MAVEN_LOCAL_REPO:-${HOME}/.m2/repository}"
-if [ ! -f "${MAVEN_LOCAL_REPO}/com/nvidia/cuvs/cuvs-java/${CUVS_JAVA_VERSION}/cuvs-java-${CUVS_JAVA_VERSION}.jar" ]; then
-    echo "com.nvidia.cuvs:cuvs-java:${CUVS_JAVA_VERSION} was not found in ${MAVEN_LOCAL_REPO}."
+if [ ! -f "${MAVEN_LOCAL_REPO}/com/nvidia/cuvs/cuvs-java/${VERSION}/cuvs-java-${VERSION}.jar" ]; then
+    echo "com.nvidia.cuvs:cuvs-java:${VERSION} was not found in ${MAVEN_LOCAL_REPO}."
     echo "Please build it first (ex. '${REPODIR}/build.sh libcuvs java') if it is not already installed."
 fi
 
