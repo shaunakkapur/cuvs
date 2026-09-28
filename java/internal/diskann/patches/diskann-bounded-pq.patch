@@ -1,0 +1,59 @@
+diff --git a/include/pq.h b/include/pq.h
+index 3e6119f2..ebdb1ac1 100644
+--- a/include/pq.h
++++ b/include/pq.h
+@@ -73,7 +73,7 @@ DISKANN_DLLEXPORT int generate_pq_pivots_simplified(const float *train_data, siz
+ template <typename T>
+ int generate_pq_data_from_pivots(const std::string &data_file, unsigned num_centers, unsigned num_pq_chunks,
+                                  const std::string &pq_pivots_path, const std::string &pq_compressed_vectors_path,
+-                                 bool use_opq = false);
++                                 bool use_opq = false, size_t block_size = 5000000);
+ 
+ DISKANN_DLLEXPORT int generate_pq_data_from_pivots_simplified(const float *data, const size_t num,
+                                                               const float *pivot_data, const size_t pivots_num,
+diff --git a/src/pq.cpp b/src/pq.cpp
+index d2b545c7..d39486ec 100644
+--- a/src/pq.cpp
++++ b/src/pq.cpp
+@@ -848,8 +848,10 @@ int generate_pq_data_from_pivots_simplified(const float *data, const size_t num,
+ template <typename T>
+ int generate_pq_data_from_pivots(const std::string &data_file, uint32_t num_centers, uint32_t num_pq_chunks,
+                                  const std::string &pq_pivots_path, const std::string &pq_compressed_vectors_path,
+-                                 bool use_opq)
++                                 bool use_opq, size_t requested_block_size)
+ {
++    if (requested_block_size == 0)
++        throw diskann::ANNException("PQ encoding block size must be positive", -1);
+     size_t read_blk_size = 64 * 1024 * 1024;
+     cached_ifstream base_reader(data_file, read_blk_size);
+     uint32_t npts32;
+@@ -937,7 +939,7 @@ int generate_pq_data_from_pivots(const std::string &data_file, uint32_t num_cent
+     compressed_file_writer.write((char *)&num_points, sizeof(uint32_t));
+     compressed_file_writer.write((char *)&num_pq_chunks_u32, sizeof(uint32_t));
+ 
+-    size_t block_size = num_points <= BLOCK_SIZE ? num_points : BLOCK_SIZE;
++    size_t block_size = (std::min)(num_points, requested_block_size);
+ 
+ #ifdef SAVE_INFLATED_PQ
+     std::ofstream inflated_file_writer(inflated_pq_file, std::ios::binary);
+@@ -1137,17 +1139,17 @@ template DISKANN_DLLEXPORT int generate_pq_data_from_pivots<int8_t>(const std::s
+                                                                     uint32_t num_pq_chunks,
+                                                                     const std::string &pq_pivots_path,
+                                                                     const std::string &pq_compressed_vectors_path,
+-                                                                    bool use_opq);
++                                                                    bool use_opq, size_t block_size);
+ template DISKANN_DLLEXPORT int generate_pq_data_from_pivots<uint8_t>(const std::string &data_file, uint32_t num_centers,
+                                                                      uint32_t num_pq_chunks,
+                                                                      const std::string &pq_pivots_path,
+                                                                      const std::string &pq_compressed_vectors_path,
+-                                                                     bool use_opq);
++                                                                     bool use_opq, size_t block_size);
+ template DISKANN_DLLEXPORT int generate_pq_data_from_pivots<float>(const std::string &data_file, uint32_t num_centers,
+                                                                    uint32_t num_pq_chunks,
+                                                                    const std::string &pq_pivots_path,
+                                                                    const std::string &pq_compressed_vectors_path,
+-                                                                   bool use_opq);
++                                                                   bool use_opq, size_t block_size);
+ 
+ template DISKANN_DLLEXPORT void generate_disk_quantized_data<int8_t>(const std::string &data_file_to_use,
+                                                                      const std::string &disk_pq_pivots_path,

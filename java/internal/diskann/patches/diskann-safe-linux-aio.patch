@@ -1,0 +1,102 @@
+diff --git a/src/linux_aligned_file_reader.cpp b/src/linux_aligned_file_reader.cpp
+index 067e3647..06afc616 100644
+--- a/src/linux_aligned_file_reader.cpp
++++ b/src/linux_aligned_file_reader.cpp
+@@ -17,6 +17,28 @@ typedef struct iocb iocb_t;
+ 
+ void execute_io(io_context_t ctx, int fd, std::vector<AlignedRead> &read_reqs, uint64_t n_retries = 0)
+ {
++    // The JNI prototype uses synchronous reads so a failed request cannot leave
++    // kernel AIO operations referring to buffers whose stack has unwound.
++    (void)ctx;
++    (void)n_retries;
++    for (const auto &req : read_reqs)
++    {
++        size_t completed = 0;
++        while (completed < req.len)
++        {
++            ssize_t result = ::pread(fd, static_cast<char *>(req.buf) + completed, req.len - completed,
++                                     req.offset + completed);
++            if (result < 0 && errno == EINTR)
++                continue;
++            if (result < 0)
++                throw diskann::ANNException("pread failed", errno, __FUNCSIG__, __FILE__, __LINE__);
++            if (result == 0)
++                throw diskann::ANNException("Unexpected end of disk index", -1, __FUNCSIG__, __FILE__, __LINE__);
++            completed += (size_t)result;
++        }
++    }
++    return;
++#if 0
+ #ifdef DEBUG
+     for (auto &req : read_reqs)
+     {
+@@ -88,6 +110,7 @@ void execute_io(io_context_t ctx, int fd, std::vector<AlignedRead> &read_reqs, u
+         }
+         */
+     }
++#endif
+ }
+ } // namespace
+ 
+@@ -142,6 +165,10 @@ void LinuxAlignedFileReader::register_thread()
+         std::cerr << "multiple calls to register_thread from the same thread" << std::endl;
+         return;
+     }
++    // Synchronous pread does not consume a Linux AIO context.
++    ctx_map[my_id] = 0;
++    return;
++#if 0
+     io_context_t ctx = 0;
+     int ret = io_setup(MAX_EVENTS, &ctx);
+     if (ret != 0)
+@@ -160,17 +187,19 @@ void LinuxAlignedFileReader::register_thread()
+         diskann::cout << "allocating ctx: " << ctx << " to thread-id:" << my_id << std::endl;
+         ctx_map[my_id] = ctx;
+     }
++#endif
+ }
+ 
+ void LinuxAlignedFileReader::deregister_thread()
+ {
+     auto my_id = std::this_thread::get_id();
+     std::unique_lock<std::mutex> lk(ctx_mut);
+-    assert(ctx_map.find(my_id) != ctx_map.end());
++    if (ctx_map.find(my_id) == ctx_map.end())
++        return;
+ 
+     lk.unlock();
+     io_context_t ctx = this->get_ctx();
+-    io_destroy(ctx);
++    if (ctx != 0) io_destroy(ctx);
+     //  assert(ret == 0);
+     lk.lock();
+     ctx_map.erase(my_id);
+@@ -184,7 +213,7 @@ void LinuxAlignedFileReader::deregister_all_threads()
+     for (auto x = ctx_map.begin(); x != ctx_map.end(); x++)
+     {
+         io_context_t ctx = x.value();
+-        io_destroy(ctx);
++        if (ctx != 0) io_destroy(ctx);
+         //  assert(ret == 0);
+         //  lk.lock();
+         //  ctx_map.erase(my_id);
+@@ -199,7 +228,8 @@ void LinuxAlignedFileReader::open(const std::string &fname)
+     int flags = O_DIRECT | O_RDONLY | O_LARGEFILE;
+     this->file_desc = ::open(fname.c_str(), flags);
+     // error checks
+-    assert(this->file_desc != -1);
++    if (this->file_desc == -1)
++        throw diskann::ANNException(std::string("Unable to open ") + fname, errno, __FUNCSIG__, __FILE__, __LINE__);
+     std::cerr << "Opened file : " << fname << std::endl;
+ }
+ 
+@@ -221,6 +251,7 @@ void LinuxAlignedFileReader::read(std::vector<AlignedRead> &read_reqs, io_contex
+     {
+         diskann::cout << "Async currently not supported in linux." << std::endl;
+     }
+-    assert(this->file_desc != -1);
++    if (this->file_desc == -1)
++        throw diskann::ANNException("Read attempted on closed file", -1, __FUNCSIG__, __FILE__, __LINE__);
+     execute_io(ctx, this->file_desc, read_reqs);
+ }

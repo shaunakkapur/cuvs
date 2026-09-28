@@ -23,6 +23,13 @@ project(
 find_package(OpenMP)
 find_package(Threads)
 
+# Experimental fork-only DiskANN reader. Kept opt-in so ordinary cuVS builds
+# do not acquire DiskANN, MKL, or JNI dependencies.
+option(BUILD_DISKANN_JAVA "Build the optional CPU DiskANN Java bridge" OFF)
+if(BUILD_DISKANN_JAVA)
+  add_subdirectory(diskann)
+endif()
+
 option(FIND_CUVS_CPP "Search for existing CUVS C++ installations before defaulting to local files"
        ON
 )

@@ -1,0 +1,16 @@
+diff --git a/src/pq_flash_index.cpp b/src/pq_flash_index.cpp
+--- a/src/pq_flash_index.cpp
++++ b/src/pq_flash_index.cpp
+@@ -1663,6 +1663,12 @@ void PQFlashIndex<T, LabelT>::cached_beam_search(const T *query1, const uint64_t
+         std::sort(full_retset.begin(), full_retset.end());
+     }
+ 
++    if (full_retset.size() < k_search)
++    {
++        throw ANNException("Search produced fewer results than requested", -1, __FUNCSIG__, __FILE__,
++                           __LINE__);
++    }
++
+     // copy k_search values
+     for (uint64_t i = 0; i < k_search; i++)
+     {
